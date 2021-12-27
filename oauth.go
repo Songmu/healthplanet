@@ -13,6 +13,7 @@ import (
 )
 
 func newOauth2Config() *oauth2.Config {
+	// Since this is just a client application, it doesn't matter if the secret is exposed.
 	return &oauth2.Config{
 		Scopes: []string{"innerscan,sphygmomanometer,pedometer"},
 		Endpoint: oauth2.Endpoint{

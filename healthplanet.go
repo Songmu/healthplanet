@@ -33,10 +33,23 @@ func Run(ctx context.Context, argv []string, outStream, errStream io.Writer) err
 	if *ver {
 		return printVersion(outStream)
 	}
-	_, err := newApp(ctx, outStream, errStream)
+	app, err := newApp(ctx, outStream, errStream)
 	if err != nil {
 		return err
 	}
+
+	body := url.Values{}
+	body.Set("from", "20211220000000")
+	body.Set("to", "20211229000000")
+	body.Set("tag", "6021,6022")
+	resp, err := app.doAPI(ctx, "/status/innerscan.json", body)
+	if err != nil {
+		return err
+	}
+	b, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	fmt.Println(string(b))
+
 	return nil
 }
 
@@ -48,6 +61,7 @@ func printVersion(out io.Writer) error {
 type healthplanet struct {
 	outStream, errStream io.Writer
 
+	uri          *url.URL
 	token        *oauth2.Token
 	config       *oauth2.Config
 	settingsFile string
@@ -59,6 +73,8 @@ func newApp(ctx context.Context, outStream, errStream io.Writer) (*healthplanet,
 		outStream: outStream,
 		errStream: errStream,
 	}
+	hp.uri, _ = url.Parse("https://www.healthplanet.jp")
+
 	if err := hp.setup(); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("failed to get configuration: %w", err)
 	}
@@ -187,4 +203,22 @@ func (e *expirationTime) UnmarshalJSON(b []byte) error {
 	}
 	*e = expirationTime(i)
 	return nil
+}
+
+func (hp *healthplanet) doAPI(ctx context.Context, path string, body url.Values) (
+	*http.Response, error) {
+
+	if body == nil {
+		body = url.Values{}
+	}
+	body.Set("access_token", hp.token.AccessToken)
+	hp.uri.Path = path
+	hp.uri.RawQuery = body.Encode()
+	req, err := http.NewRequestWithContext(ctx, "GET", hp.uri.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	return http.DefaultClient.Do(req)
 }
