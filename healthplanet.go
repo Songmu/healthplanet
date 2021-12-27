@@ -7,8 +7,13 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"golang.org/x/oauth2"
 )
@@ -63,11 +68,31 @@ func newApp(ctx context.Context, outStream, errStream io.Writer) (*healthplanet,
 			return nil, fmt.Errorf("failed to get access token: %w", err)
 		}
 	}
-	t, err := hp.config.TokenSource(ctx, hp.token).Token()
-	if err != nil {
-		return nil, err
-	}
-	if t.AccessToken != hp.token.AccessToken {
+
+	if !hp.isTokenValid() {
+		req, err := hp.refreshRequest(ctx)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		resp.Body.Close()
+		if code := resp.StatusCode; code < 200 || code > 299 {
+			return nil, fmt.Errorf("oauth2: can not fetch token: %d\nResponse: %s", code, string(body))
+		}
+		var tj tokenJSON
+		if err = json.Unmarshal(body, &tj); err != nil {
+			return nil, err
+		}
+		t := &oauth2.Token{
+			AccessToken:  tj.AccessToken,
+			TokenType:    tj.TokenType,
+			RefreshToken: tj.RefreshToken,
+			Expiry:       tj.expiry(),
+		}
 		hp.token = t
 		if err := hp.saveToken(); err != nil {
 			return nil, err
@@ -94,5 +119,72 @@ func (hp *healthplanet) setup() error {
 	if err := json.NewDecoder(f).Decode(&hp.token); err != nil {
 		return fmt.Errorf("could not unmarshal %s: %w", hp.settingsFile, err)
 	}
+	return nil
+}
+
+func expired(t *oauth2.Token) bool {
+	if t.Expiry.IsZero() {
+		return false
+	}
+	return t.Expiry.Round(0).Add(-10 * time.Second).Before(time.Now())
+}
+
+func (hp *healthplanet) isTokenValid() bool {
+	t := hp.token
+	return t != nil && t.AccessToken != "" && !expired(t)
+}
+
+func (hp *healthplanet) refreshRequest(ctx context.Context) (*http.Request, error) {
+	v := url.Values{}
+	v.Set("client_id", hp.config.ClientID)
+	v.Set("client_secret", hp.config.ClientSecret)
+	v.Set("redirect_uri", hp.config.RedirectURL)
+	v.Set("grant_type", "refresh_token")
+	v.Set("refresh_token", hp.token.RefreshToken)
+	req, err := http.NewRequestWithContext(
+		ctx, "POST", hp.config.Endpoint.TokenURL, strings.NewReader(v.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return req, nil
+}
+
+// copied from oauth2/token.go
+// tokenJSON is the struct representing the HTTP response from OAuth2
+// providers returning a token in JSON form.
+type tokenJSON struct {
+	AccessToken  string         `json:"access_token"`
+	TokenType    string         `json:"token_type"`
+	RefreshToken string         `json:"refresh_token"`
+	ExpiresIn    expirationTime `json:"expires_in"` // at least PayPal returns string, while most return number
+}
+
+func (e *tokenJSON) expiry() (t time.Time) {
+	if v := e.ExpiresIn; v != 0 {
+		return time.Now().Add(time.Duration(v) * time.Second)
+	}
+	return
+}
+
+type expirationTime int32
+
+func (e *expirationTime) UnmarshalJSON(b []byte) error {
+	if len(b) == 0 || string(b) == "null" {
+		return nil
+	}
+	var n json.Number
+	err := json.Unmarshal(b, &n)
+	if err != nil {
+		return err
+	}
+	i, err := n.Int64()
+	if err != nil {
+		return err
+	}
+	if i > math.MaxInt32 {
+		i = math.MaxInt32
+	}
+	*e = expirationTime(i)
 	return nil
 }
