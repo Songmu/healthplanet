@@ -67,13 +67,15 @@ type healthplanet struct {
 	settingsFile string
 }
 
+const baseURL = "https://www.healthplanet.jp"
+
 func newApp(ctx context.Context, outStream, errStream io.Writer) (*healthplanet, error) {
 	hp := &healthplanet{
 		config:    newOauth2Config(),
 		outStream: outStream,
 		errStream: errStream,
 	}
-	hp.uri, _ = url.Parse("https://www.healthplanet.jp")
+	hp.uri, _ = url.Parse(baseURL)
 
 	if err := hp.setup(); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("failed to get configuration: %w", err)
@@ -108,6 +110,12 @@ func (hp *healthplanet) setup() error {
 		return fmt.Errorf("could not unmarshal %s: %w", hp.settingsFile, err)
 	}
 	return nil
+}
+
+var defaultUserAgent string
+
+func init() {
+	defaultUserAgent = "Songmu/" + version + " (+https://github.com/Songmu/healthplanet)"
 }
 
 // Implement the token refresh logic on our own. This is because Healthplanet requires redirect_uri
@@ -176,8 +184,13 @@ func (hp *healthplanet) refreshRequest(ctx context.Context) (*http.Request, erro
 	if err != nil {
 		return nil, err
 	}
+	return hp.setDefaultHeaders(req), nil
+}
+
+func (hp *healthplanet) setDefaultHeaders(req *http.Request) *http.Request {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	return req, nil
+	req.Header.Set("User-Agent", defaultUserAgent)
+	return req
 }
 
 // copied from oauth2/token.go
@@ -232,7 +245,6 @@ func (hp *healthplanet) doAPI(ctx context.Context, path string, body url.Values)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
+	req = hp.setDefaultHeaders(req)
 	return http.DefaultClient.Do(req)
 }
