@@ -117,6 +117,8 @@ func (hp *healthplanet) refreshTokenIfInvalid(ctx context.Context) error {
 	if hp.isTokenValid() {
 		return nil
 	}
+	log.Println("your token is expired, so refreshing")
+
 	req, err := hp.refreshRequest(ctx)
 	if err != nil {
 		return err

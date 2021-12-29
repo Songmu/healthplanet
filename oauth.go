@@ -35,19 +35,18 @@ func (hp *healthplanet) accessToken(ctx context.Context) (err error) {
 	state := fmt.Sprintf("%x", stateBytes)
 	uri := hp.config.AuthCodeURL(state, oauth2.SetAuthURLParam("response_type", "code"))
 
-	log.Printf("opening browser: %s\n", uri)
+	log.Printf("opening browser: %s\n\n", uri)
 	log.Printf("The above URL will be opened to obtain an access token.")
-	log.Printf("(If your browser does not open it automatically, please open it yourself.)\n")
+	log.Printf("  (If your browser does not open it automatically, please open it yourself.)\n")
 	log.Printf("Go through the authorization flow in your browser, copy the code to get the token,\n")
-	log.Printf("and then come back to this terminal and paste the code.")
+	log.Printf("and then come back to this terminal and paste the code.\n\n")
 	if !prompter.YN("Are you ready?", false) {
 		return fmt.Errorf("token obtaining process has been canceled.")
 	}
 	if err := open.Start(uri); err != nil {
 		return err
 	}
-
-	code := prompter.Prompt("enter the code", "")
+	code := prompter.Prompt("Enter the code", "")
 	hp.token, err = hp.config.Exchange(ctx, code)
 	if err != nil {
 		return fmt.Errorf("failed to exchange access token: %w", err)
@@ -70,5 +69,6 @@ func (hp *healthplanet) saveToken() (err error) {
 	if err := jenc.Encode(hp.token); err != nil {
 		return fmt.Errorf("failed to store file: %v", err)
 	}
+	log.Printf("your access token is stored to %s", hp.settingsFile)
 	return nil
 }
