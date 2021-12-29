@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/Songmu/prompter"
@@ -33,7 +34,15 @@ func (hp *healthplanet) accessToken(ctx context.Context) (err error) {
 	}
 	state := fmt.Sprintf("%x", stateBytes)
 	uri := hp.config.AuthCodeURL(state, oauth2.SetAuthURLParam("response_type", "code"))
-	fmt.Fprintf(hp.errStream, "opening browser: %s\n", uri)
+
+	log.Printf("opening browser: %s\n", uri)
+	log.Printf("The above URL will be opened to obtain an access token.")
+	log.Printf("(If your browser does not open it automatically, please open it yourself.)\n")
+	log.Printf("Go through the authorization flow in your browser, copy the code to get the token,\n")
+	log.Printf("and then come back to this terminal and paste the code.")
+	if !prompter.YN("Are you ready?", false) {
+		return fmt.Errorf("token obtaining process has been canceled.")
+	}
 	if err := open.Start(uri); err != nil {
 		return err
 	}

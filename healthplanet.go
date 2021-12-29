@@ -78,41 +78,13 @@ func newApp(ctx context.Context, outStream, errStream io.Writer) (*healthplanet,
 	if err := hp.setup(); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("failed to get configuration: %w", err)
 	}
-
 	if hp.token == nil || hp.token.AccessToken == "" {
 		if err := hp.accessToken(ctx); err != nil {
 			return nil, fmt.Errorf("failed to get access token: %w", err)
 		}
 	}
-
-	if !hp.isTokenValid() {
-		req, err := hp.refreshRequest(ctx)
-		if err != nil {
-			return nil, err
-		}
-		resp, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		resp.Body.Close()
-		if code := resp.StatusCode; code < 200 || code > 299 {
-			return nil, fmt.Errorf("oauth2: can not fetch token: %d\nResponse: %s", code, string(body))
-		}
-		var tj tokenJSON
-		if err = json.Unmarshal(body, &tj); err != nil {
-			return nil, err
-		}
-		t := &oauth2.Token{
-			AccessToken:  tj.AccessToken,
-			TokenType:    tj.TokenType,
-			RefreshToken: tj.RefreshToken,
-			Expiry:       tj.expiry(),
-		}
-		hp.token = t
-		if err := hp.saveToken(); err != nil {
-			return nil, err
-		}
+	if err := hp.refreshTokenIfInvalid(ctx); err != nil {
+		return nil, fmt.Errorf("failed to refresh token: %w", err)
 	}
 	return hp, nil
 }
@@ -134,6 +106,46 @@ func (hp *healthplanet) setup() error {
 	defer f.Close()
 	if err := json.NewDecoder(f).Decode(&hp.token); err != nil {
 		return fmt.Errorf("could not unmarshal %s: %w", hp.settingsFile, err)
+	}
+	return nil
+}
+
+// Implement the token refresh logic on our own. This is because Healthplanet requires redirect_uri
+// as a required parameter even for refresh requests, and `hp.config.TokenSource(ctx, hp.token).Token()`
+// doesn't do it. (This is rather a strange behavior on Healthplanet's side.
+func (hp *healthplanet) refreshTokenIfInvalid(ctx context.Context) error {
+	if hp.isTokenValid() {
+		return nil
+	}
+	req, err := hp.refreshRequest(ctx)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+	if code := resp.StatusCode; code < 200 || code > 299 {
+		return fmt.Errorf("oauth2: can not fetch token: %d\nResponse: %s", code, string(body))
+	}
+	var tj tokenJSON
+	if err = json.Unmarshal(body, &tj); err != nil {
+		return err
+	}
+	t := &oauth2.Token{
+		AccessToken:  tj.AccessToken,
+		TokenType:    tj.TokenType,
+		RefreshToken: tj.RefreshToken,
+		Expiry:       tj.expiry(),
+	}
+	hp.token = t
+	if err := hp.saveToken(); err != nil {
+		return fmt.Errorf("failed to saveToken: %w", err)
 	}
 	return nil
 }
