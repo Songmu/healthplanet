@@ -25,6 +25,7 @@ func Run(ctx context.Context, argv []string, outStream, errStream io.Writer) err
 	fs := flag.NewFlagSet(
 		fmt.Sprintf("%s (v%s rev:%s)", cmdName, version, revision), flag.ContinueOnError)
 	fs.SetOutput(errStream)
+
 	ver := fs.Bool("version", false, "display version")
 	if err := fs.Parse(argv); err != nil {
 		return err
@@ -39,7 +40,7 @@ func Run(ctx context.Context, argv []string, outStream, errStream io.Writer) err
 
 	body := url.Values{}
 	body.Set("from", "20211220000000")
-	body.Set("to", "20211229000000")
+	body.Set("to", "20220129000000")
 	body.Set("tag", "6021,6022")
 	resp, err := app.doAPI(ctx, "/status/innerscan.json", body)
 	if err != nil {
@@ -55,6 +56,15 @@ func Run(ctx context.Context, argv []string, outStream, errStream io.Writer) err
 func printVersion(out io.Writer) error {
 	_, err := fmt.Fprintf(out, "%s v%s (rev:%s)\n", cmdName, version, revision)
 	return err
+}
+
+var dispatch = map[string]runner{
+	"metrics": runnerFunc(metricsCmd),
+	"request": runnerFunc(requestCmd),
+}
+
+type runner interface {
+	run(context.Context, []string, io.Writer, io.Writer) error
 }
 
 type healthplanet struct {
