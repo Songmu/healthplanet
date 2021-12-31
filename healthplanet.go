@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -189,14 +188,14 @@ func (hp *healthplanet) setDefaultHeaders(req *http.Request) *http.Request {
 	return req
 }
 
-// copied from oauth2/token.go
+// almost copied from oauth2/token.go
 // tokenJSON is the struct representing the HTTP response from OAuth2
 // providers returning a token in JSON form.
 type tokenJSON struct {
-	AccessToken  string         `json:"access_token"`
-	TokenType    string         `json:"token_type"`
-	RefreshToken string         `json:"refresh_token"`
-	ExpiresIn    expirationTime `json:"expires_in"` // at least PayPal returns string, while most return number
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int    `json:"expires_in"`
 }
 
 func (e *tokenJSON) expiry() (t time.Time) {
@@ -204,28 +203,6 @@ func (e *tokenJSON) expiry() (t time.Time) {
 		return time.Now().Add(time.Duration(v) * time.Second)
 	}
 	return
-}
-
-type expirationTime int32
-
-func (e *expirationTime) UnmarshalJSON(b []byte) error {
-	if len(b) == 0 || string(b) == "null" {
-		return nil
-	}
-	var n json.Number
-	err := json.Unmarshal(b, &n)
-	if err != nil {
-		return err
-	}
-	i, err := n.Int64()
-	if err != nil {
-		return err
-	}
-	if i > math.MaxInt32 {
-		i = math.MaxInt32
-	}
-	*e = expirationTime(i)
-	return nil
 }
 
 func (hp *healthplanet) doAPI(ctx context.Context, path string, body url.Values) (
