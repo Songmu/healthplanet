@@ -33,7 +33,7 @@ func Run(ctx context.Context, argv []string, outStream, errStream io.Writer) err
 	if *ver {
 		return printVersion(outStream)
 	}
-	app, err := newApp(ctx, outStream, errStream)
+	app, err := newApp(ctx)
 	if err != nil {
 		return err
 	}
@@ -59,8 +59,6 @@ func printVersion(out io.Writer) error {
 }
 
 type healthplanet struct {
-	outStream, errStream io.Writer
-
 	uri          *url.URL
 	token        *oauth2.Token
 	config       *oauth2.Config
@@ -69,11 +67,9 @@ type healthplanet struct {
 
 const baseURL = "https://www.healthplanet.jp"
 
-func newApp(ctx context.Context, outStream, errStream io.Writer) (*healthplanet, error) {
+func newApp(ctx context.Context) (*healthplanet, error) {
 	hp := &healthplanet{
-		config:    newOauth2Config(),
-		outStream: outStream,
-		errStream: errStream,
+		config: newOauth2Config(),
 	}
 	hp.uri, _ = url.Parse(baseURL)
 
