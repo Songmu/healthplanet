@@ -46,9 +46,13 @@ func Run(ctx context.Context, argv []string, outStream, errStream io.Writer) err
 	if err != nil {
 		return err
 	}
-	b, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	fmt.Println(string(b))
+	defer resp.Body.Close()
+	d := &response{}
+	if err := json.NewDecoder(resp.Body).Decode(d); err != nil {
+		return err
+	}
+	_ = d
+	// fmt.Println(string(b))
 
 	return nil
 }
