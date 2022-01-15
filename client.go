@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// Client is a client for healthplanet
 type Client struct {
 	baseURL *url.URL
 	token   string
@@ -16,7 +17,11 @@ type Client struct {
 	client *http.Client
 }
 
-func newClient(u *url.URL, token string) *Client {
+const baseURL = "https://www.healthplanet.jp"
+
+// NewClient returns the new client
+func NewClient(token string) *Client {
+	u, _ := url.Parse(baseURL)
 	return &Client{
 		baseURL: u,
 		token:   token,
@@ -30,7 +35,8 @@ var st2tags = map[string]string{
 	"pedometer":        "6331",           // walk
 }
 
-func (cl *Client) getStatus(ctx context.Context, status string, from, to time.Time) (*response, error) {
+// Status returns statuses
+func (cl *Client) Status(ctx context.Context, status string, from, to time.Time) (*Response, error) {
 	const layout = "20060102150405"
 
 	endpoint := fmt.Sprintf("/status/%s.json", status)
@@ -48,7 +54,7 @@ func (cl *Client) getStatus(ctx context.Context, status string, from, to time.Ti
 		return nil, err
 	}
 	defer resp.Body.Close()
-	d := &response{}
+	d := &Response{}
 	if err := json.NewDecoder(resp.Body).Decode(d); err != nil {
 		return nil, err
 	}
