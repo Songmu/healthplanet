@@ -33,19 +33,21 @@ func Run(ctx context.Context, argv []string, outStream, errStream io.Writer) err
 	if *ver {
 		return printVersion(outStream)
 	}
+
+	argv = fs.Args()
+	if len(argv) < 1 {
+		return fmt.Errorf("no subcommand specified")
+	}
+	rnr, ok := dispatch[argv[0]]
+	if !ok {
+		return fmt.Errorf("unknown subcommand: %s", argv[0])
+	}
 	app, err := newApp(ctx)
 	if err != nil {
 		return err
 	}
 
-	now := time.Now()
-	ret, err := app.client.Status(ctx, "innerscan", now.AddDate(0, 0, -14), now)
-	if err != nil {
-		return err
-	}
-	_ = ret
-
-	return nil
+	return rnr.run(withApp(ctx, app), argv[1:], outStream, errStream)
 }
 
 func printVersion(out io.Writer) error {
@@ -86,6 +88,18 @@ func newApp(ctx context.Context) (*healthplanet, error) {
 	}
 	hp.client = NewClient(hp.token.AccessToken)
 	return hp, nil
+}
+
+type ctxkey string
+
+const healthplanetCtxKey ctxkey = "healthplanet"
+
+func withApp(ctx context.Context, hp *healthplanet) context.Context {
+	return context.WithValue(ctx, healthplanetCtxKey, hp)
+}
+
+func getApp(ctx context.Context) *healthplanet {
+	return ctx.Value(healthplanetCtxKey).(*healthplanet)
 }
 
 func (hp *healthplanet) setup() error {

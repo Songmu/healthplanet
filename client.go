@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -54,6 +55,13 @@ func (cl *Client) Status(ctx context.Context, status string, from, to time.Time)
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		b, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to request and read body, status: %d, %w", resp.StatusCode, err)
+		}
+		return nil, fmt.Errorf("failed to request. status: %d, body: %s", resp.StatusCode, string(b))
+	}
 	d := &Response{}
 	if err := json.NewDecoder(resp.Body).Decode(d); err != nil {
 		return nil, err

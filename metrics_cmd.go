@@ -2,9 +2,10 @@ package healthplanet
 
 import (
 	"context"
+	"fmt"
 	"io"
 )
 
 func metricsCmd(ctx context.Context, argv []string, outStream, errWtream io.Writer) error {
-	return nil
+	return fmt.Errorf("haven't implemented yet")
 }
