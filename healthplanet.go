@@ -38,21 +38,12 @@ func Run(ctx context.Context, argv []string, outStream, errStream io.Writer) err
 		return err
 	}
 
-	body := url.Values{}
-	body.Set("from", "20211220000000")
-	body.Set("to", "20220129000000")
-	body.Set("tag", "6021,6022")
-	resp, err := app.doAPI(ctx, "/status/innerscan.json", body)
+	now := time.Now()
+	ret, err := app.client.getStatus(ctx, "innerscan", now.AddDate(0, 0, -14), now)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
-	d := &response{}
-	if err := json.NewDecoder(resp.Body).Decode(d); err != nil {
-		return err
-	}
-	_ = d
-	// fmt.Println(string(b))
+	_ = ret
 
 	return nil
 }
@@ -72,10 +63,10 @@ type runner interface {
 }
 
 type healthplanet struct {
-	uri          *url.URL
 	token        *oauth2.Token
 	config       *oauth2.Config
 	settingsFile string
+	client       *Client
 }
 
 const baseURL = "https://www.healthplanet.jp"
@@ -84,7 +75,7 @@ func newApp(ctx context.Context) (*healthplanet, error) {
 	hp := &healthplanet{
 		config: newOauth2Config(),
 	}
-	hp.uri, _ = url.Parse(baseURL)
+	u, _ := url.Parse(baseURL)
 
 	if err := hp.setup(); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("failed to get configuration: %w", err)
@@ -97,6 +88,7 @@ func newApp(ctx context.Context) (*healthplanet, error) {
 	if err := hp.refreshTokenIfInvalid(ctx); err != nil {
 		return nil, fmt.Errorf("failed to refresh token: %w", err)
 	}
+	hp.client = newClient(u, hp.token.AccessToken)
 	return hp, nil
 }
 
@@ -121,12 +113,6 @@ func (hp *healthplanet) setup() error {
 	return nil
 }
 
-var defaultUserAgent string
-
-func init() {
-	defaultUserAgent = "Songmu/" + version + " (+https://github.com/Songmu/healthplanet)"
-}
-
 // Implement the token refresh logic on our own. This is because Healthplanet requires redirect_uri
 // as a required parameter even for refresh requests, and `hp.config.TokenSource(ctx, hp.token).Token()`
 // doesn't do it. (This is rather a strange behavior on Healthplanet's side.
@@ -140,7 +126,7 @@ func (hp *healthplanet) refreshTokenIfInvalid(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := hp.client.do(req)
 	if err != nil {
 		return err
 	}
@@ -193,13 +179,7 @@ func (hp *healthplanet) refreshRequest(ctx context.Context) (*http.Request, erro
 	if err != nil {
 		return nil, err
 	}
-	return hp.setDefaultHeaders(req), nil
-}
-
-func (hp *healthplanet) setDefaultHeaders(req *http.Request) *http.Request {
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("User-Agent", defaultUserAgent)
-	return req
+	return req, nil
 }
 
 // almost copied from oauth2/token.go
@@ -217,21 +197,4 @@ func (e *tokenJSON) expiry() (t time.Time) {
 		return time.Now().Add(time.Duration(v) * time.Second)
 	}
 	return
-}
-
-func (hp *healthplanet) doAPI(ctx context.Context, path string, body url.Values) (
-	*http.Response, error) {
-
-	if body == nil {
-		body = url.Values{}
-	}
-	body.Set("access_token", hp.token.AccessToken)
-	hp.uri.Path = path
-	hp.uri.RawQuery = body.Encode()
-	req, err := http.NewRequestWithContext(ctx, "GET", hp.uri.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-	req = hp.setDefaultHeaders(req)
-	return http.DefaultClient.Do(req)
 }
