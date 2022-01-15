@@ -1,13 +1,13 @@
 package healthplanet
 
-type response struct {
+type Response struct {
 	BirthDate string  `json:"birth_date"`
-	Data      []*data `json:"data"`
+	Data      []*Data `json:"data"`
 	Height    string  `json:"height"`
 	Sex       string  `json:"sex"`
 }
 
-type data struct {
+type Data struct {
 	Date    string `json:"date"`
 	KeyData string `json:"keydata"`
 	Model   string `json:"model"`

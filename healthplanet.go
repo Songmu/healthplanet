@@ -39,7 +39,7 @@ func Run(ctx context.Context, argv []string, outStream, errStream io.Writer) err
 	}
 
 	now := time.Now()
-	ret, err := app.client.getStatus(ctx, "innerscan", now.AddDate(0, 0, -14), now)
+	ret, err := app.client.Status(ctx, "innerscan", now.AddDate(0, 0, -14), now)
 	if err != nil {
 		return err
 	}
@@ -69,14 +69,10 @@ type healthplanet struct {
 	client       *Client
 }
 
-const baseURL = "https://www.healthplanet.jp"
-
 func newApp(ctx context.Context) (*healthplanet, error) {
 	hp := &healthplanet{
 		config: newOauth2Config(),
 	}
-	u, _ := url.Parse(baseURL)
-
 	if err := hp.setup(); err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("failed to get configuration: %w", err)
 	}
@@ -88,7 +84,7 @@ func newApp(ctx context.Context) (*healthplanet, error) {
 	if err := hp.refreshTokenIfInvalid(ctx); err != nil {
 		return nil, fmt.Errorf("failed to refresh token: %w", err)
 	}
-	hp.client = newClient(u, hp.token.AccessToken)
+	hp.client = NewClient(hp.token.AccessToken)
 	return hp, nil
 }
 
