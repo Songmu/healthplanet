@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// The Healthplanet is a Japanese service, and the API location is fixed to Asia/Tokyo.
 var asiaTokyo *time.Location
 
 func init() {
@@ -19,7 +20,7 @@ func init() {
 
 func metricsCmd(ctx context.Context, argv []string, outStream, errWtream io.Writer) error {
 	app := getApp(ctx)
-	now := time.Now()
+	now := time.Now().In(asiaTokyo)
 	var metrics = map[string]*Data{}
 	var height string // for BMI
 	for _, status := range []string{"innerscan", "sphygmomanometer"} {

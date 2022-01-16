@@ -21,7 +21,7 @@ func requestCmd(ctx context.Context, argv []string, outStream, errStream io.Writ
 	}
 
 	app := getApp(ctx)
-	now := time.Now()
+	now := time.Now().In(asiaTokyo)
 	ret, err := app.client.Status(ctx, status, now.AddDate(0, 0, -7), now)
 	if err != nil {
 		return err
