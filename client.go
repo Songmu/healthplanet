@@ -18,7 +18,11 @@ type Client struct {
 	client *http.Client
 }
 
-const baseURL = "https://www.healthplanet.jp"
+const (
+	baseURL        = "https://www.healthplanet.jp"
+	timeLayout     = "20060102150405"
+	dataTimeLayout = "200601021504"
+)
 
 // NewClient returns the new client
 func NewClient(token string) *Client {
@@ -38,16 +42,14 @@ var st2tags = map[string]string{
 
 // Status returns statuses
 func (cl *Client) Status(ctx context.Context, status string, from, to time.Time) (*Response, error) {
-	const layout = "20060102150405"
-
 	endpoint := fmt.Sprintf("/status/%s.json", status)
 	tags, ok := st2tags[status]
 	if !ok {
 		return nil, fmt.Errorf("no tag found for status: %s", status)
 	}
 	body := url.Values{}
-	body.Set("from", from.Format(layout))
-	body.Set("to", to.Format(layout))
+	body.Set("from", from.Format(timeLayout))
+	body.Set("to", to.Format(timeLayout))
 	body.Set("date", "1")
 	body.Set("tag", tags)
 	resp, err := cl.doAPI(ctx, endpoint, body)
