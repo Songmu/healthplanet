@@ -22,9 +22,17 @@ const cmdName = "healthplanet"
 // Run the healthplanet
 func Run(ctx context.Context, argv []string, outStream, errStream io.Writer) error {
 	log.SetOutput(errStream)
-	fs := flag.NewFlagSet(
-		fmt.Sprintf("%s (v%s rev:%s)", cmdName, version, revision), flag.ContinueOnError)
+	nameAndVer := fmt.Sprintf("%s (v%s rev:%s)", cmdName, version, revision)
+	fs := flag.NewFlagSet(nameAndVer, flag.ContinueOnError)
 	fs.SetOutput(errStream)
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage of %s:\n", nameAndVer)
+		fs.PrintDefaults()
+		fmt.Fprintf(fs.Output(), "\nCommands:")
+		fmt.Fprintf(fs.Output(), `
+  metrics   Output values in metrics format
+  request   Output JSON of API request results`)
+	}
 
 	ver := fs.Bool("version", false, "display version")
 	if err := fs.Parse(argv); err != nil {
